@@ -7,6 +7,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.util.Identifier;
 
 public class ParticleControlClient implements ClientModInitializer {
 
@@ -16,11 +17,13 @@ public class ParticleControlClient implements ClientModInitializer {
     public void onInitializeClient() {
         ParticleConfig.load();
 
+        KeyBinding.Category category = new KeyBinding.Category(Identifier.of("particlecontrol", "main"));
+
         openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.particlecontrol.open_gui",
                 InputUtil.Type.KEYSYM,
                 InputUtil.GLFW_KEY_P,
-                "category.particlecontrol"
+                category
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
