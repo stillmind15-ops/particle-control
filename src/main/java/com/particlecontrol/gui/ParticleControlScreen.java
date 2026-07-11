@@ -15,13 +15,15 @@ import java.util.List;
 
 public class ParticleControlScreen extends Screen {
 
-    private static final int TOP_PADDING = 48;
-    private static final int BOTTOM_PADDING = 32;
+    private static final int ROW_HEIGHT = 20;
+    private static final int LIST_TOP = 48;
+    private static final int LIST_BOTTOM_MARGIN = 32;
 
     private final Screen parent;
     private List<Identifier> allIds;
-    private ParticleListWidget list;
+    private List<Identifier> filteredIds;
     private TextFieldWidget searchBox;
+    private double scrollOffset = 0;
 
     public ParticleControlScreen(Screen parent) {
         super(Text.literal("Particle control"));
@@ -32,51 +34,99 @@ public class ParticleControlScreen extends Screen {
     protected void init() {
         this.allIds = new ArrayList<>(Registries.PARTICLE_TYPE.getIds());
         this.allIds.sort(Comparator.comparing(Identifier::toString));
-
-        this.list = new ParticleListWidget(this.client, this.width, this.height - TOP_PADDING - BOTTOM_PADDING, TOP_PADDING, 22);
-        this.list.setEntries(this.allIds);
-        this.addSelectableChild(this.list);
+        this.filteredIds = this.allIds;
 
         this.searchBox = new TextFieldWidget(this.textRenderer, 8, 20, this.width - 16, 20, Text.literal("Search"));
         this.searchBox.setPlaceholder(Text.literal("Search particles..."));
-        this.searchBox.setChangedListener(query -> filter(query));
+        this.searchBox.setChangedListener(this::applyFilter);
         this.addSelectableChild(this.searchBox);
         this.setInitialFocus(this.searchBox);
 
-        int y = this.height - BOTTOM_PADDING + 6;
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Enable all"), b -> {
-            ParticleConfig.enableAll(this.allIds);
-            this.list.setEntries(currentFiltered());
-        }).dimensions(8, y, 100, 20).build());
+        int y = this.height - LIST_BOTTOM_MARGIN + 6;
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Enable all"),
+                b -> ParticleConfig.enableAll(this.allIds)).dimensions(8, y, 100, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Disable all"), b -> {
-            ParticleConfig.disableAll();
-            this.list.setEntries(currentFiltered());
-        }).dimensions(112, y, 100, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Disable all"),
+                b -> ParticleConfig.disableAll()).dimensions(112, y, 100, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> this.close())
                 .dimensions(this.width - 108, y, 100, 20).build());
     }
 
-    private List<Identifier> currentFiltered() {
-        String query = this.searchBox == null ? "" : this.searchBox.getText().toLowerCase();
-        if (query.isBlank()) {
-            return this.allIds;
+    private void applyFilter(String query) {
+        String q = query.toLowerCase();
+        if (q.isBlank()) {
+            this.filteredIds = this.allIds;
+        } else {
+            List<Identifier> result = new ArrayList<>();
+            for (Identifier id : this.allIds) {
+                if (id.toString().toLowerCase().contains(q)) {
+                    result.add(id);
+                }
+            }
+            this.filteredIds = result;
         }
-        return this.allIds.stream().filter(id -> id.toString().toLowerCase().contains(query)).toList();
+        this.scrollOffset = 0;
     }
 
-    private void filter(String query) {
-        this.list.setEntries(currentFiltered());
+    private int listBottom() {
+        return this.height - LIST_BOTTOM_MARGIN;
+    }
+
+    private double maxScroll() {
+        int contentHeight = this.filteredIds.size() * ROW_HEIGHT;
+        int viewHeight = listBottom() - LIST_TOP;
+        return Math.max(0, contentHeight - viewHeight);
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
-        this.list.render(context, mouseX, mouseY, delta);
+
+        context.fill(4, LIST_TOP, this.width - 4, listBottom(), 0x66000000);
+        context.enableScissor(4, LIST_TOP, this.width - 4, listBottom());
+
+        int startIndex = Math.max(0, (int) (scrollOffset / ROW_HEIGHT));
+        int y = LIST_TOP - (int) (scrollOffset % ROW_HEIGHT);
+        for (int i = startIndex; i < this.filteredIds.size() && y < listBottom(); i++) {
+            Identifier id = this.filteredIds.get(i);
+            boolean on = ParticleConfig.isEnabled(id);
+
+            context.drawText(this.textRenderer, Text.literal(id.toString()), 10, y + 6, 0xFFFFFF, false);
+            int badgeColor = on ? 0xFF3CB878 : 0xFF888888;
+            context.fill(this.width - 60, y + 3, this.width - 12, y + ROW_HEIGHT - 3, badgeColor);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(on ? "ON" : "OFF"),
+                    this.width - 36, y + 6, 0x000000);
+
+            y += ROW_HEIGHT;
+        }
+
+        context.disableScissor();
+
         this.searchBox.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 6, 0xFFFFFF);
         super.render(context, mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (mouseY >= LIST_TOP && mouseY <= listBottom() && mouseX >= 4 && mouseX <= this.width - 4) {
+            int relativeY = (int) (mouseY - LIST_TOP + scrollOffset);
+            int index = relativeY / ROW_HEIGHT;
+            if (index >= 0 && index < this.filteredIds.size()) {
+                Identifier id = this.filteredIds.get(index);
+                ParticleConfig.setEnabled(id, !ParticleConfig.isEnabled(id));
+                return true;
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        this.scrollOffset -= verticalAmount * ROW_HEIGHT * 2;
+        this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxScroll()));
+        return true;
     }
 
     @Override
