@@ -1,6 +1,6 @@
 package com.particlecontrol;
 
-import com.mojang.blaze3d.platform.InputUtil;
+import net.minecraft.client.util.InputUtil;
 import com.particlecontrol.config.ParticleConfig;
 import com.particlecontrol.gui.ParticleControlScreen;
 import net.fabricmc.api.ClientModInitializer;
