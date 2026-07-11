@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "particlecontrol",
+  "version": "${version}",
+  "name": "Particle Control",
+  "description": "Disables all particles by default and lets you re-enable exactly the ones you want from an in-game GUI.",
+  "authors": ["You"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.particlecontrol.ParticleControlClient"
+    ]
+  },
+  "mixins": [
+    "particlecontrol.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}
